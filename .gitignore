@@ -1,0 +1,9 @@
+venv/
+.DS_Store
+*.zip
+cleaned data/
+claims_with_predicted_risk.csv
+model_performance_by_fold.csv
+model_performance_nested_cv.csv
+__pycache__/
+*.pyc

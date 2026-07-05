@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claim Denial Risk Predictor</title>
+<style>
+  :root {
+    --bg: #f3f5f7;
+    --card: #ffffff;
+    --ink: #1d2733;
+    --muted: #647184;
+    --line: #dfe4ea;
+    --accent: #2f6690;
+    --accent-ink: #ffffff;
+    --low: #2f8f5b;
+    --low-bg: #e8f5ee;
+    --med: #b8860b;
+    --med-bg: #fbf1dc;
+    --high: #c0392b;
+    --high-bg: #fbeae8;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 32px 16px 64px;
+  }
+
+  header {
+    max-width: 760px;
+    margin: 0 auto 24px;
+  }
+
+  header .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  header h1 {
+    font-size: 24px;
+    margin: 4px 0 4px;
+  }
+
+  header p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .card {
+    max-width: 760px;
+    margin: 0 auto 20px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 12px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .field .hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .field input, .field select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .field input:focus, .field select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .actions {
+    max-width: 760px;
+    margin: 0 auto 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  button#predict-btn {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  button#predict-btn:hover { background: #285677; }
+  button#predict-btn:disabled { opacity: 0.6; cursor: default; }
+
+  #status-msg {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  #status-msg.error { color: var(--high); }
+
+  .result {
+    display: none;
+  }
+
+  .result.visible { display: block; }
+
+  .result-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .badge.low   { background: var(--low-bg);  color: var(--low); }
+  .badge.medium{ background: var(--med-bg);  color: var(--med); }
+  .badge.high  { background: var(--high-bg); color: var(--high); }
+
+  .prob-line {
+    font-size: 32px;
+    font-weight: 700;
+  }
+
+  .bar-track {
+    width: 100%;
+    height: 10px;
+    border-radius: 6px;
+    background: var(--low-bg);
+    overflow: hidden;
+    margin: 8px 0 4px;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  .bar-caption {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Internal tool &middot; not for patient-facing use</div>
+  <h1>Claim Denial Risk Predictor</h1>
+  <p>Model: <strong>{{ model_name }}</strong> &middot; enter claim details below to estimate denial risk.</p>
+</header>
+
+<div class="card">
+  <div id="form-status" class="section-title">Loading form fields&hellip;</div>
+  <form id="predict-form">
+    <div id="numeric-section"></div>
+    <div id="categorical-section"></div>
+  </form>
+</div>
+
+<div class="actions">
+  <button id="predict-btn" type="button">Predict</button>
+  <span id="status-msg"></span>
+</div>
+
+<div class="card result" id="result-card">
+  <div class="result-top">
+    <div>
+      <div class="section-title" style="margin-bottom:2px;">Probability of denial</div>
+      <div class="prob-line" id="prob-value">--%</div>
+    </div>
+    <span class="badge" id="risk-badge">--</span>
+  </div>
+  <div class="bar-track"><div class="bar-fill" id="prob-bar" style="width:0%"></div></div>
+  <div class="bar-caption">
+    <span>0%</span>
+    <span>100%</span>
+  </div>
+</div>
+
+<footer>Predictions are model estimates, not adjudication decisions. Always confirm with payer policy.</footer>
+
+<script>
+let schema = null;
+
+function fieldWrapper(name, innerHtml, hint) {
+  return `
+    <div class="field">
+      <label for="f_${name}">${name.replaceAll('_', ' ')}</label>
+      ${hint ? `<div class="hint">${hint}</div>` : ''}
+      ${innerHtml}
+    </div>`;
+}
+
+function renderForm(data) {
+  schema = data;
+
+  const numericEntries = Object.entries(data.numeric);
+  const categoricalEntries = Object.entries(data.categorical);
+
+  let numericHtml = '';
+  if (numericEntries.length) {
+    numericHtml += `<div class="section-title">Numeric fields</div><div class="grid">`;
+    for (const [name, stats] of numericEntries) {
+      const hint = (stats.min !== null && stats.max !== null)
+        ? `typical range ${stats.min} &ndash; ${stats.max}`
+        : '';
+      const placeholder = stats.mean !== null ? stats.mean : '';
+      numericHtml += fieldWrapper(
+        name,
+        `<input type="number" step="any" id="f_${name}" name="${name}" placeholder="${placeholder}">`,
+        hint
+      );
+    }
+    numericHtml += `</div>`;
+  }
+  document.getElementById('numeric-section').innerHTML = numericHtml;
+
+  let catHtml = '';
+  if (categoricalEntries.length) {
+    catHtml += `<div class="section-title" style="margin-top:20px;">Categorical fields</div><div class="grid">`;
+    for (const [name, options] of categoricalEntries) {
+      let inner;
+      if (options.length > 0 && options.length <= 30) {
+        const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+        inner = `<select id="f_${name}" name="${name}"><option value="">-- select --</option>${opts}</select>`;
+      } else {
+        inner = `<input type="text" id="f_${name}" name="${name}" placeholder="enter value">`;
+      }
+      catHtml += fieldWrapper(name, inner, options.length > 30 ? `${options.length} known values, free text` : '');
+    }
+    catHtml += `</div>`;
+  }
+  document.getElementById('categorical-section').innerHTML = catHtml;
+
+  document.getElementById('form-status').textContent = 'Claim details';
+}
+
+function collectPayload() {
+  const payload = {};
+  for (const name of Object.keys(schema.numeric)) {
+    payload[name] = document.getElementById(`f_${name}`).value;
+  }
+  for (const name of Object.keys(schema.categorical)) {
+    payload[name] = document.getElementById(`f_${name}`).value;
+  }
+  return payload;
+}
+
+function showResult(result) {
+  const pct = (result.probability_denied * 100).toFixed(1);
+  document.getElementById('prob-value').textContent = `${pct}%`;
+  document.getElementById('prob-bar').style.width = `${pct}%`;
+
+  const badge = document.getElementById('risk-badge');
+  badge.textContent = result.risk_category;
+  badge.className = 'badge';
+  if (result.risk_category === 'Low Risk') badge.classList.add('low');
+  else if (result.risk_category === 'Medium Risk') badge.classList.add('medium');
+  else badge.classList.add('high');
+
+  const bar = document.getElementById('prob-bar');
+  bar.style.background =
+    result.risk_category === 'Low Risk' ? 'var(--low)' :
+    result.risk_category === 'Medium Risk' ? 'var(--med)' : 'var(--high)';
+
+  document.getElementById('result-card').classList.add('visible');
+}
+
+async function loadFeatures() {
+  try {
+    const res = await fetch('/api/features');
+    const data = await res.json();
+    renderForm(data);
+  } catch (err) {
+    document.getElementById('form-status').textContent = 'Could not load form fields.';
+  }
+}
+
+document.getElementById('predict-btn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('status-msg');
+  statusEl.textContent = 'Scoring...';
+  statusEl.classList.remove('error');
+
+  const btn = document.getElementById('predict-btn');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectPayload())
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      statusEl.textContent = data.error || 'Prediction failed.';
+      statusEl.classList.add('error');
+    } else {
+      statusEl.textContent = '';
+      showResult(data);
+    }
+  } catch (err) {
+    statusEl.textContent = 'Network error contacting the model server.';
+    statusEl.classList.add('error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadFeatures();
+</script>
+
+</body>
+</html>
