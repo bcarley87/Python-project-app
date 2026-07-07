@@ -676,6 +676,12 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function labelFor(name) {
   const overrides = {
     claim_amount: 'Claim amount ($)',
@@ -814,14 +820,15 @@ function setupProviderCombo(providerIds) {
 
   function renderMatches(query) {
     const q = query.trim().toUpperCase();
-    const matches = (q ? providerIds.filter(p => p.toUpperCase().includes(q)) : providerIds).slice(0, 50);
+    const allMatches = q ? providerIds.filter(p => p.toUpperCase().includes(q)) : providerIds;
+    const matches = allMatches.slice(0, 50);
 
     if (!matches.length) {
       dd.innerHTML = `<div class="combo-empty">No matching provider IDs.</div>`;
       return;
     }
 
-    const countLabel = q ? `${matches.length}${matches.length === 50 ? '+' : ''} matches` : `${providerIds.length} provider IDs`;
+    const countLabel = q ? `${matches.length}${allMatches.length > 50 ? '+' : ''} matches` : `${providerIds.length} provider IDs`;
     let html = `<div class="combo-count">${countLabel}</div>`;
     for (const p of matches) {
       const display = q ? p.replace(new RegExp(escapeRegExp(q), 'i'), m => `<mark>${m}</mark>`) : p;
@@ -924,7 +931,7 @@ function renderHistory() {
   list.innerHTML = historyItems.map(h => `
     <div class="history-row">
       <div>
-        <div class="provider mono">${h.provider}</div>
+        <div class="provider mono">${escapeHtml(h.provider)}</div>
         <div class="meta">${h.amount ? '$' + Number(h.amount).toLocaleString() : '—'} &middot; ${h.time}</div>
       </div>
       <span class="pct mono" style="color:var(--${h.cls === 'medium' ? 'med-dot' : h.cls})">${h.pct}%</span>
