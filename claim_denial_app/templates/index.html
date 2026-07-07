@@ -672,6 +672,10 @@ let schema = null;
 let historyItems = [];
 const collapsedGroups = new Set();
 
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function labelFor(name) {
   const overrides = {
     claim_amount: 'Claim amount ($)',
@@ -820,7 +824,7 @@ function setupProviderCombo(providerIds) {
     const countLabel = q ? `${matches.length}${matches.length === 50 ? '+' : ''} matches` : `${providerIds.length} provider IDs`;
     let html = `<div class="combo-count">${countLabel}</div>`;
     for (const p of matches) {
-      const display = q ? p.replace(new RegExp(q, 'i'), m => `<mark>${m}</mark>`) : p;
+      const display = q ? p.replace(new RegExp(escapeRegExp(q), 'i'), m => `<mark>${m}</mark>`) : p;
       html += `<div class="combo-row" data-value="${p}">
         <span class="mono">${display}</span>
       </div>`;

@@ -39,18 +39,26 @@ with open(SCHEMA_PATH) as f:
     schema_data = json.load(f)
 
 feature_schema = schema_data["features"]
-risk_cutoffs = schema_data["risk_cutoffs"]
 model_name = schema_data.get("model_name", "model")
 
 numeric_features = list(feature_schema["numeric"].keys())
 categorical_features = list(feature_schema["categorical"].keys())
 all_features = numeric_features + categorical_features
 
+# Fields the training data stored as real Python bool (not the string "True"/"False").
+# The model's OneHotEncoder learned bool categories, so it silently drops these to
+# "unknown" (handle_unknown="ignore") if we hand it strings instead.
+boolean_features = {
+    f
+    for f in categorical_features
+    if set(feature_schema["categorical"][f]) == {"True", "False"}
+}
+
 
 def risk_category(prob_denied: float) -> str:
-    if prob_denied < risk_cutoffs["low_cutoff"]:
+    if prob_denied < 0.30:
         return "Low Risk"
-    elif prob_denied < risk_cutoffs["high_cutoff"]:
+    elif prob_denied < 0.70:
         return "Medium Risk"
     return "High Risk"
 
@@ -94,7 +102,12 @@ def predict():
 
     for f in categorical_features:
         raw = payload.get(f)
-        row[f] = None if raw in (None, "") else str(raw)
+        if raw in (None, ""):
+            row[f] = None
+        elif f in boolean_features:
+            row[f] = str(raw).strip().lower() == "true"
+        else:
+            row[f] = str(raw)
 
     input_df = pd.DataFrame([row], columns=all_features)
 
